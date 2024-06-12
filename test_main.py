@@ -8,8 +8,12 @@ import sys
 
 load_dotenv()
 
-user = os.getenv("USERNAME3")
-password = os.getenv("PASSWORD3")
+user = os.getenv("USERNAME1")
+password = os.getenv("PASSWORD1")
+
+# Print the loaded environment variables
+print(f"Loaded USERNAME1: {user}")
+print(f"Loaded PASSWORD1: {'*' * len(password) if password else None}")
 
 client = TestClient(app)
 
