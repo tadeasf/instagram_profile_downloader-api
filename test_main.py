@@ -4,6 +4,7 @@ from httpx import ASGITransport, AsyncClient
 from app import app
 from dotenv import load_dotenv
 import os
+import sys
 
 load_dotenv()
 
@@ -89,3 +90,4 @@ async def test_health():
 
 if __name__ == "__main__":
     pytest.main()
+    sys.exit()
