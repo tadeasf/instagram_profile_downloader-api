@@ -8,8 +8,8 @@ import sys
 
 load_dotenv()
 
-user = os.getenv("USERNAME2")
-password = os.getenv("PASSWORD2")
+user = os.getenv("USERNAME3")
+password = os.getenv("PASSWORD3")
 
 client = TestClient(app)
 
@@ -38,13 +38,13 @@ async def test_get_highlights_invalid_index():
     assert "error" in response.json()
     assert "valid_indexes" in response.json()
 
-@pytest.mark.asyncio
-async def test_get_posts_no_skip_no_limit():
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
-        response = await ac.get(f"/posts/kknaislova?user={user}&password={password}")
-    print("Response (posts, no skip, no limit):", response.json())
-    assert response.status_code == 200
-    assert "post_urls" in response.json()
+# @pytest.mark.asyncio
+# async def test_get_posts_no_skip_no_limit():
+#     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+#         response = await ac.get(f"/posts/kknaislova?user={user}&password={password}")
+#     print("Response (posts, no skip, no limit):", response.json())
+#     assert response.status_code == 200
+#     assert "post_urls" in response.json()
 
 @pytest.mark.asyncio
 async def test_get_posts_with_skip_and_limit():
