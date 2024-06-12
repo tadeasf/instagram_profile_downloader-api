@@ -1,0 +1,12 @@
+opencv-python
+pillow
+rich
+rich-cli
+fastapi
+requests
+instaloader
+loguru
+pytest
+httpx
+pytest-asyncio
+python-dotenv
