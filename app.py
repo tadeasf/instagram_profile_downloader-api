@@ -9,7 +9,6 @@ from rich.console import Console
 from rich.traceback import install
 from PIL import Image
 import cv2
-import yaml
 
 # Install rich traceback handler
 install()
@@ -20,16 +19,33 @@ console = Console()
 # Configure loguru to log to a file
 logger.remove()
 
-CONFIG_PATH = os.path.expanduser("~/.config/instagram_profile_downloader/config.yml")
-
 app = FastAPI()
 
-def load_config():
-    """Load the configuration file."""
-    if os.path.exists(CONFIG_PATH):
-        with open(CONFIG_PATH, "r") as file:
-            return yaml.safe_load(file)
-    return {}
+# Global variables to track request statistics
+requests_succeeded = 0
+requests_failed = 0
+
+def increment_succeeded():
+    global requests_succeeded
+    requests_succeeded += 1
+
+def increment_failed():
+    global requests_failed
+    requests_failed += 1
+
+def reset_stats():
+    global requests_succeeded, requests_failed
+    requests_succeeded = 0
+    requests_failed = 0
+
+# Schedule reset of stats every hour
+import threading
+
+def schedule_reset():
+    threading.Timer(3600, schedule_reset).start()
+    reset_stats()
+
+schedule_reset()
 
 def generate_log_filename(profile_name):
     # Create the filename from the name of the profile we are downloading + current date - DD/MM/YYYY
@@ -124,8 +140,6 @@ def authenticate_and_get_loader(user, password, two_factor=False):
 @app.get("/highlights/{profile_name}/{index_of_highlight}")
 @app.get("/highlights/{profile_name}")
 async def get_highlights(profile_name: str, index_of_highlight: Optional[int] = None, user: str = Query(...), password: str = Query(...)):
-    config = load_config()
-    media_root = config.get("download_directory", ".")
     L = authenticate_and_get_loader(user, password)
 
     try:
@@ -136,23 +150,25 @@ async def get_highlights(profile_name: str, index_of_highlight: Optional[int] = 
             if 0 <= index_of_highlight < len(highlights):
                 highlight = highlights[index_of_highlight]
                 highlight_media = [item.url for item in highlight.get_items()]
+                increment_succeeded()
                 return {"highlight_urls": highlight_media}
             else:
+                increment_failed()
                 return {"error": "Invalid index", "valid_indexes": list(range(len(highlights)))}
         else:
             all_highlights = {}
             for i, highlight in enumerate(highlights):
                 all_highlights[i] = [item.url for item in highlight.get_items()]
+            increment_succeeded()
             return {"all_highlights": all_highlights}
     except Exception as e:
+        increment_failed()
         logger.error(f"Error fetching highlights for profile {profile_name}: {e}")
         console.print(f"[red]Error fetching highlights for profile {profile_name}: {e}[/red]")
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 @app.get("/posts/{profile_name}")
 async def get_posts(profile_name: str, user: str = Query(...), password: str = Query(...), skip: Optional[int] = 0, limit: Optional[int] = None):
-    config = load_config()
-    media_root = config.get("download_directory", ".")
     L = authenticate_and_get_loader(user, password)
 
     try:
@@ -169,11 +185,44 @@ async def get_posts(profile_name: str, user: str = Query(...), password: str = Q
                 for sidecar in post.get_sidecar_nodes():
                     post_media.append(sidecar.video_url if sidecar.is_video else sidecar.display_url)
         
+        increment_succeeded()
         return {"post_urls": post_media}
     except Exception as e:
+        increment_failed()
         logger.error(f"Error fetching posts for profile {profile_name}: {e}")
         console.print(f"[red]Error fetching posts for profile {profile_name}: {e}[/red]")
         raise HTTPException(status_code=500, detail="Internal Server Error")
+
+@app.get("/profile_contents/{profile_name}")
+async def get_profile_contents(profile_name: str, user: str = Query(...), password: str = Query(...)):
+    L = authenticate_and_get_loader(user, password)
+
+    try:
+        profile = instaloader.Profile.from_username(L.context, profile_name)
+        highlights = list(L.get_highlights(profile))
+        posts = list(profile.get_posts())
+
+        highlight_info = [{"name": h.title, "number_of_items": len(list(h.get_items()))} for h in highlights]
+        post_info = {"number_of_posts": len(posts)}
+
+        increment_succeeded()
+        return {"highlights": highlight_info, "posts": post_info}
+    except Exception as e:
+        increment_failed()
+        logger.error(f"Error fetching profile contents for profile {profile_name}: {e}")
+        console.print(f"[red]Error fetching profile contents for profile {profile_name}: {e}[/red]")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+@app.get("/")
+async def root():
+    return {
+        "requests_succeeded": requests_succeeded,
+        "requests_failed": requests_failed,
+    }
+
+@app.get("/health")
+async def health():
+    return {"status": "healthy"}
 
 if __name__ == "__main__":
     import uvicorn
