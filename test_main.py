@@ -89,5 +89,5 @@ async def test_health():
     assert response.json() == {"status": "healthy"}
 
 if __name__ == "__main__":
-    pytest.main()
+    pytest.main(['-s'])
     sys.exit()
