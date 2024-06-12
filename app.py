@@ -3,12 +3,10 @@ import time
 import requests
 import instaloader
 from fastapi import FastAPI, HTTPException, Query
-from typing import Optional, List
+from typing import Optional
 from loguru import logger
 from rich.console import Console
 from rich.traceback import install
-from PIL import Image
-import cv2
 
 # Install rich traceback handler
 install()
@@ -46,64 +44,6 @@ def schedule_reset():
     reset_stats()
 
 schedule_reset()
-
-def generate_log_filename(profile_name):
-    # Create the filename from the name of the profile we are downloading + current date - DD/MM/YYYY
-    return f"{profile_name}_{time.strftime('%d-%m-%Y')}.log"
-
-def format_size(size):
-    # Format size to be in B/KB/MB
-    for unit in ["B", "KB", "MB"]:
-        if size < 1024:
-            return f"{size:.2f} {unit}"
-        size /= 1024
-
-def download_media(url, output_dir):
-    try:
-        # Ensure the output directory exists
-        os.makedirs(output_dir, exist_ok=True)
-
-        # Extract filename from URL
-        filename = os.path.join(output_dir, url.split("?")[0].split("/")[-1])
-        short_filename = os.path.basename(filename)  # Get only the filename
-
-        # Download the media
-        response = requests.get(url, stream=True)
-        if response.status_code == 200:
-            with open(filename, "wb") as f:
-                for chunk in response.iter_content(1024):
-                    f.write(chunk)
-            logger.info(f"Downloaded {url} to {filename}")
-
-            file_size = os.path.getsize(filename)
-            formatted_size = format_size(file_size)
-
-            if filename.lower().endswith((".png", ".jpg", ".jpeg")):
-                with Image.open(filename) as img:
-                    width, height = img.size
-                console.print(
-                    f"[cyan bold]Downloaded:[/cyan bold] {short_filename} [magenta]({width}x{height}px, {formatted_size})[/magenta]"
-                )
-            elif filename.lower().endswith((".mp4", ".avi", ".mov")):
-                cap = cv2.VideoCapture(filename)
-                fps = cap.get(cv2.CAP_PROP_FPS)
-                total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-                duration = total_frames / fps
-                console.print(
-                    f"[cyan bold]Downloaded:[/cyan bold] {short_filename} [magenta](FPS: {fps:.2f}, Duration: {duration:.2f}s, {formatted_size})[/magenta]"
-                )
-            else:
-                console.print(
-                    f"[cyan bold]Downloaded:[/cyan bold] {short_filename} [magenta]({formatted_size})[/magenta]"
-                )
-        else:
-            logger.error(f"Failed to download {url}: HTTP {response.status_code}")
-            console.print(
-                f"[red]Failed to download {url}: HTTP {response.status_code}[/red]"
-            )
-    except Exception as e:
-        logger.error(f"Failed to download {url}: {e}")
-        console.print(f"[red]Failed to download {url}: {e}[/red]")
 
 def authenticate_and_get_loader(user, password, two_factor=False):
     """Authenticate with Instagram and return an Instaloader instance."""
