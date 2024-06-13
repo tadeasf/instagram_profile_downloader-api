@@ -10,3 +10,5 @@ pytest
 httpx
 pytest-asyncio
 python-dotenv
+uvicorn
+gunicorn
