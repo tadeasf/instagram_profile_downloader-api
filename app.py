@@ -14,16 +14,13 @@ install()
 # Initialize rich console
 console = Console()
 
-
-# function to generate filename by grabbing current date but not time
 def get_filename():
     import datetime
-
     return datetime.datetime.now().strftime("%Y-%m-%d")
-
 
 log_filename = get_filename()
 log_filename_str = f"logs/{log_filename}.log"
+
 # Configure loguru to log to a file
 logger.remove()
 logger.add(log_filename_str, rotation="00:00", retention="7 days", enqueue=True)
@@ -41,32 +38,26 @@ app = FastAPI(
 requests_succeeded = 0
 requests_failed = 0
 
-INSTALOADER_SESSION_FILE = "instaloader_session"
-
+INSTALOADER_SESSION_FILE = "session-file"
 
 def increment_succeeded():
     global requests_succeeded
     requests_succeeded += 1
 
-
 def increment_failed():
     global requests_failed
     requests_failed += 1
-
 
 def reset_stats():
     global requests_succeeded, requests_failed
     requests_succeeded = 0
     requests_failed = 0
 
-
 def schedule_reset():
     threading.Timer(3600, schedule_reset).start()
     reset_stats()
 
-
 schedule_reset()
-
 
 def authenticate_and_get_loader(user, password, two_factor=False):
     """Authenticate with Instagram and return an Instaloader instance."""
@@ -115,22 +106,12 @@ def authenticate_and_get_loader(user, password, two_factor=False):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     except instaloader.exceptions.ConnectionException as e:
         logger.error(f"ConnectionException encountered: {e}")
-        try:
-            checkpoint_url = e.args[0].split(" ")[-1]
-            console.print(f"[red]Checkpoint required: {checkpoint_url}[/red]")
-            raise HTTPException(
-                status_code=401,
-                detail=f"Checkpoint required. Please visit {checkpoint_url} and follow the instructions. Then download the session file from /download_session and use it to complete the checkpoint.",
-            )
-        except IndexError as extraction_error:
-            logger.error(f"Error extracting checkpoint URL: {extraction_error}")
-            raise HTTPException(
-                status_code=500,
-                detail="Error extracting checkpoint URL. Please check the logs for more details.",
-            )
+        raise HTTPException(
+            status_code=503,
+            detail="Service Unavailable due to connection issues."
+        )
 
     return L
-
 
 @app.get("/highlights/{profile_name}/{index_of_highlight}")
 @app.get("/highlights/{profile_name}")
@@ -178,6 +159,15 @@ async def get_highlights(
             f"[red]Connection error while fetching highlights for profile {profile_name}: {e}[/red]"
         )
         raise HTTPException(status_code=503, detail="Service Unavailable")
+    except instaloader.exceptions.InstaloaderException as e:
+        increment_failed()
+        logger.error(
+            f"Instaloader encountered an error for profile {profile_name}: {e}"
+        )
+        console.print(
+            f"[red]Instaloader encountered an error for profile {profile_name}: {e}[/red]"
+        )
+        raise HTTPException(status_code=400, detail="Bad Request")
     except Exception as e:
         increment_failed()
         logger.error(f"Error fetching highlights for profile {profile_name}: {e}")
